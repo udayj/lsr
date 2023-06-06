@@ -1,6 +1,8 @@
 use clap::{App, Arg};
 use std::error::Error;
 use std::fs;
+use std::fs::Permissions;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 type MyResult<T> = Result<T, Box< dyn Error>>;
 
@@ -48,6 +50,16 @@ pub fn get_args() -> MyResult<Config> {
     )
 }
 
+pub fn run(config: Config) -> MyResult<()> {
+    let files = find_files(&config.paths, config.hidden)?;
+    for file in &files {
+        println!("{}", file.display());
+    }
+    
+    println!("{:?}", format_mode(&files));
+    Ok(())
+}
+
 //function that takes a &[String], show_hidden and return MyResult<Vec<PathBuf>> with list of path bufs corresponding to the paths in argument &[String]
 //go through list of string, convert each string to PathBuf
 // If path is not valid, return error
@@ -83,4 +95,42 @@ fn is_hidden(path: &PathBuf) -> bool {
     path.file_name()
         .map(|file_name| file_name.to_string_lossy().starts_with('.'))
         .unwrap_or(false)
+}
+
+// Given a &[PathBuf] return a Vec<String> representing the read/write permissions (rwx) for each path
+fn format_mode(paths: &[PathBuf]) -> Vec<String> {
+
+    let mut output: Vec<String> = Vec::new();
+    for path in paths {
+        let mut permissions = String::new();
+        if path.is_dir() {
+            permissions.push('d');
+        }
+        else {
+            permissions.push('-');
+        }
+        let metadata = path.metadata().unwrap();
+        println!("Permissions: {:?}", metadata.permissions().mode());
+        let mode = metadata.permissions().mode();
+        if mode & 0o400 != 0 {
+            permissions.push('r');
+        }
+        else {
+            permissions.push('-');
+        }
+        if mode & 0o200 != 0 {
+            permissions.push('w');
+        }
+        else {
+            permissions.push('-');
+        }
+        if mode & 0o100 != 0 {
+            permissions.push('x');
+        }
+        else {
+            permissions.push('-');
+        }
+        output.push(permissions);
+    }
+    output
 }
